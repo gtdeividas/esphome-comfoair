@@ -10,6 +10,7 @@
 #include "esphome/components/switch/switch.h"
 #include "esphome/components/uart/uart.h"
 #include "registers.h"
+#include <cstdint>
 
 namespace esphome {
 namespace comfoair {
@@ -50,7 +51,7 @@ public:
     write_command_(CMD_SET_VENTILATION_LEVEL, command_data, sizeof(command_data));
   }
 
-  void control_set_curmode_speeds(int exhaust, int supply) {
+  void control_set_curmode_speeds(int32_t  exhaust, int32_t supply) {
     // Default values: Abw ab 16 - Abw zu 0 - Low ab 47 - Low zu 35 - Middle ab 67 - Middle zu 50 - High ab 87 - High zu 70
     ESP_LOGI(TAG, "Setting speeds for level %i to: %i,%i", ventilation_level->state, exhaust, supply);
     uint8_t command_data[CMD_SET_VENTILATION_LEVEL_LENGTH] = {
@@ -67,7 +68,7 @@ public:
     write_command_(CMD_SET_VENTILATION_LEVEL, command_data, sizeof(command_data));
   }
 
-  void control_set_speeds(bool exhaust, bool supply, int off, int low, int mid, int high) {
+  void control_set_speeds(bool exhaust, bool supply, int32_t  off, int32_t  low, int32_t  mid, int32_t high) {
     // Default values: Abw ab 16 - Abw zu 0 - Low ab 47 - Low zu 35 - Middle ab 67 - Middle zu 50 - High ab 87 - High zu 70
     uint8_t command_data[CMD_SET_VENTILATION_LEVEL_LENGTH] = {
         !exhaust ? ventilation_levels_[0] : (uint8_t)off,
