@@ -17,7 +17,7 @@ ComfoAirComponent = comfoair_ns.class_("ComfoAirComponent",  # pylint: disable=i
                                        uart.UARTDevice)
 
 DEPENDENCIES = ["uart"]
-AUTO_LOAD = ["sensor", "climate", "binary_sensor", "text_sensor"]
+AUTO_LOAD = ["sensor", "climate", "binary_sensor", "text_sensor", "switch"]
 REQUIRED_KEY_NAME = "name"
 CONF_HUB_ID = "comfoair"
 CONF_PROXY_UART_ID = "proxy_uart"
