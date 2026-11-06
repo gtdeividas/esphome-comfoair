@@ -232,7 +232,14 @@ public:
         ESP_LOGV(TAG, "Proxying command 0x%02X from confosense with %i bytes.", proxy_data_[COMMAND_IDX_MSG_ID], proxy_data_index_+1);
         // A Home Assistant level change can produce a delayed ComfoSense SET_LEVEL
         // echo. Match the payload rather than relying on a short time window.
-        if (comfosense_manual_override != nullptr &&
+        // A two-byte ACK also reaches this branch with stale bytes left in
+        // proxy_data_. Only inspect a complete, checksum-validated SET_LEVEL frame.
+        const bool complete_set_level_frame =
+            proxy_data_index_ + 1 ==
+                COMMAND_LEN_HEAD + CMD_SET_LEVEL_LENGTH + COMMAND_LEN_TAIL;
+
+        if (complete_set_level_frame &&
+            comfosense_manual_override != nullptr &&
             proxy_data_[COMMAND_IDX_MSG_ID] == CMD_SET_LEVEL &&
             proxy_data_[COMMAND_IDX_DATA] == CMD_SET_LEVEL_LENGTH &&
             proxy_data_[COMMAND_LEN_HEAD] <= 4) {
