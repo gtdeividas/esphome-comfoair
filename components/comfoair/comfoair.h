@@ -225,6 +225,17 @@ public:
       auto check = check_byte_(proxy_data_, proxy_data_index_);
       if (!check.has_value()) {
         ESP_LOGV(TAG, "Proxying command 0x%02X from confosense with %i bytes.", proxy_data_[COMMAND_IDX_MSG_ID], proxy_data_index_+1);
+        // Only a validated physical ComfoSense SET_LEVEL frame reaches this path.
+        if (comfosense_manual_override != nullptr &&
+            proxy_data_[COMMAND_IDX_MSG_ID] == CMD_SET_LEVEL &&
+            proxy_data_[COMMAND_IDX_DATA] == CMD_SET_LEVEL_LENGTH &&
+            proxy_data_[COMMAND_LEN_HEAD] <= 4) {
+          comfosense_manual_override->publish_state(true);
+          set_timeout("comfosense_manual_override_reset", 1000, [this]() {
+            if (comfosense_manual_override != nullptr)
+              comfosense_manual_override->publish_state(false);
+          });
+        }
         // ACK frames end after two bytes; only dump complete command frames.
         if (proxy_data_index_ >= COMMAND_LEN_HEAD + COMMAND_LEN_TAIL) {
           for (uint8_t i = 0; i <= proxy_data_index_; i++) {
@@ -291,6 +302,7 @@ public:
   void set_red_led_component(switch_::Switch* red_led) {red_led_ = red_led;}
   void set_green_led_component(switch_::Switch* green_led) {green_led_ = green_led;}
   void set_blue_led_component(switch_::Switch* blue_led) {blue_led_ = blue_led;}
+  void set_comfosense_manual_override_sensor(binary_sensor::BinarySensor* sensor) { comfosense_manual_override = sensor; }
 
 protected:
 
@@ -1013,6 +1025,7 @@ public:
   text_sensor::TextSensor *size{nullptr};
   text_sensor::TextSensor *filter_status{nullptr};
   binary_sensor::BinarySensor *filter_full{nullptr};
+  binary_sensor::BinarySensor *comfosense_manual_override{nullptr};
   text_sensor::TextSensor *frost_protection_level{nullptr};
   text_sensor::TextSensor *preheating_valve{nullptr};
   sensor::Sensor *intake_fan_speed{nullptr};
