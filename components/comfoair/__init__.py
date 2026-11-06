@@ -24,6 +24,7 @@ CONF_PROXY_UART_ID = "proxy_uart"
 CONF_RED_LED_ID = "red_led"
 CONF_GREEN_LED_ID = "green_led"
 CONF_BLUE_LED_ID = "blue_led"
+CONF_COMFOSENSE_MANUAL_OVERRIDE = "comfosense_manual_override"
 
 UNIT_WEEK = "weeks"
 
@@ -531,6 +532,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_RED_LED_ID): cv.use_id(switch),
             cv.Optional(CONF_GREEN_LED_ID): cv.use_id(switch),
             cv.Optional(CONF_BLUE_LED_ID): cv.use_id(switch),
+            cv.Optional(CONF_COMFOSENSE_MANUAL_OVERRIDE): binary_sensor.binary_sensor_schema(),
         }
     )
     .extend(uart.UART_DEVICE_SCHEMA)
@@ -559,6 +561,9 @@ def to_code(config):
     if CONF_BLUE_LED_ID in config:
         blue_led = yield cg.get_variable(config[CONF_BLUE_LED_ID])
         cg.add(var.set_blue_led_component(blue_led))
+    if CONF_COMFOSENSE_MANUAL_OVERRIDE in config:
+        manual_override = yield binary_sensor.new_binary_sensor(config[CONF_COMFOSENSE_MANUAL_OVERRIDE])
+        cg.add(var.set_comfosense_manual_override_sensor(manual_override))
     for k, values in helper_comfoair.items():
         for v in values:
             if v not in config:
