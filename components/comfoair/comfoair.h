@@ -136,6 +136,10 @@ public:
       }
 
       if (level >= 0) {
+        // Remember that this level change originated from the Home Assistant climate control.
+        // The ComfoSense may echo the same SET_LEVEL frame shortly afterwards.
+        last_local_level_command_ms_ = millis();
+        local_level_command_seen_ = true;
         set_level_(level);
       }
 
@@ -225,16 +229,23 @@ public:
       auto check = check_byte_(proxy_data_, proxy_data_index_);
       if (!check.has_value()) {
         ESP_LOGV(TAG, "Proxying command 0x%02X from confosense with %i bytes.", proxy_data_[COMMAND_IDX_MSG_ID], proxy_data_index_+1);
-        // Only a validated physical ComfoSense SET_LEVEL frame reaches this path.
+        // ComfoSense can echo a SET_LEVEL frame after a Home Assistant command.
+        // Ignore that echo for 1500ms; otherwise treat it as a physical button action.
+        const bool recent_local_level_command =
+            local_level_command_seen_ && (millis() - last_local_level_command_ms_ <= 1500);
         if (comfosense_manual_override != nullptr &&
             proxy_data_[COMMAND_IDX_MSG_ID] == CMD_SET_LEVEL &&
             proxy_data_[COMMAND_IDX_DATA] == CMD_SET_LEVEL_LENGTH &&
             proxy_data_[COMMAND_LEN_HEAD] <= 4) {
-          comfosense_manual_override->publish_state(true);
-          set_timeout("comfosense_manual_override_reset", 1000, [this]() {
-            if (comfosense_manual_override != nullptr)
-              comfosense_manual_override->publish_state(false);
-          });
+          if (recent_local_level_command) {
+            ESP_LOGV(TAG, "Ignoring ComfoSense SET_LEVEL echo after local climate command.");
+          } else {
+            comfosense_manual_override->publish_state(true);
+            set_timeout("comfosense_manual_override_reset", 1000, [this]() {
+              if (comfosense_manual_override != nullptr)
+                comfosense_manual_override->publish_state(false);
+            });
+          }
         }
         // ACK frames end after two bytes; only dump complete command frames.
         if (proxy_data_index_ >= COMMAND_LEN_HEAD + COMMAND_LEN_TAIL) {
@@ -1004,6 +1015,8 @@ protected:
   uint8_t proxy_data_index_{0};
   bool encountered_seven_{false};
   bool proxy_data_pending_{false};
+  uint32_t last_local_level_command_ms_{0};
+  bool local_level_command_seen_{false};
 
   int8_t update_counter_{-4};
   const int8_t num_update_counter_elements_{9};
