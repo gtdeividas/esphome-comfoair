@@ -136,10 +136,11 @@ public:
       }
 
       if (level >= 0) {
-        // Remember that this level change originated from the Home Assistant climate control.
-        // The ComfoSense may echo the same SET_LEVEL frame shortly afterwards.
-        last_local_level_command_ms_ = millis();
-        local_level_command_seen_ = true;
+        // Remember the requested level so the matching delayed ComfoSense echo
+        // can be distinguished from a physical button press.
+        pending_local_level_ = level;
+        pending_local_level_ms_ = millis();
+        pending_local_level_command_ = true;
         set_level_(level);
       }
 
@@ -229,17 +230,27 @@ public:
       auto check = check_byte_(proxy_data_, proxy_data_index_);
       if (!check.has_value()) {
         ESP_LOGV(TAG, "Proxying command 0x%02X from confosense with %i bytes.", proxy_data_[COMMAND_IDX_MSG_ID], proxy_data_index_+1);
-        // ComfoSense can echo a SET_LEVEL frame after a Home Assistant command.
-        // Ignore that echo for 1500ms; otherwise treat it as a physical button action.
-        const bool recent_local_level_command =
-            local_level_command_seen_ && (millis() - last_local_level_command_ms_ <= 1500);
+        // A Home Assistant level change can produce a delayed ComfoSense SET_LEVEL
+        // echo. Match the payload rather than relying on a short time window.
         if (comfosense_manual_override != nullptr &&
             proxy_data_[COMMAND_IDX_MSG_ID] == CMD_SET_LEVEL &&
             proxy_data_[COMMAND_IDX_DATA] == CMD_SET_LEVEL_LENGTH &&
             proxy_data_[COMMAND_LEN_HEAD] <= 4) {
-          if (recent_local_level_command) {
-            ESP_LOGV(TAG, "Ignoring ComfoSense SET_LEVEL echo after local climate command.");
+          const uint8_t received_level = proxy_data_[COMMAND_LEN_HEAD];
+          const bool pending_not_expired =
+              pending_local_level_command_ &&
+              (millis() - pending_local_level_ms_ <= 30000);
+
+          if (pending_local_level_command_ && !pending_not_expired) {
+            pending_local_level_command_ = false;
+          }
+
+          if (pending_not_expired && received_level == pending_local_level_) {
+            ESP_LOGV(TAG, "Ignoring matching delayed ComfoSense SET_LEVEL echo for local level %u.",
+                     received_level);
+            pending_local_level_command_ = false;
           } else {
+            ESP_LOGV(TAG, "Detected physical ComfoSense SET_LEVEL command: %u.", received_level);
             comfosense_manual_override->publish_state(true);
             set_timeout("comfosense_manual_override_reset", 1000, [this]() {
               if (comfosense_manual_override != nullptr)
@@ -1015,8 +1026,9 @@ protected:
   uint8_t proxy_data_index_{0};
   bool encountered_seven_{false};
   bool proxy_data_pending_{false};
-  uint32_t last_local_level_command_ms_{0};
-  bool local_level_command_seen_{false};
+  uint32_t pending_local_level_ms_{0};
+  uint8_t pending_local_level_{0};
+  bool pending_local_level_command_{false};
 
   int8_t update_counter_{-4};
   const int8_t num_update_counter_elements_{9};
