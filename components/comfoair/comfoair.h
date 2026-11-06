@@ -225,7 +225,12 @@ public:
       auto check = check_byte_(proxy_data_, proxy_data_index_);
       if (!check.has_value()) {
         ESP_LOGV(TAG, "Proxying command 0x%02X from confosense with %i bytes.", proxy_data_[COMMAND_IDX_MSG_ID], proxy_data_index_+1);
-        ESP_LOG_BUFFER_HEX(TAG, proxy_data_, proxy_data_index_ + 1);
+        // ACK frames end after two bytes; only dump complete command frames.
+        if (proxy_data_index_ >= COMMAND_LEN_HEAD + COMMAND_LEN_TAIL) {
+          for (uint8_t i = 0; i <= proxy_data_index_; i++) {
+            ESP_LOGV(TAG, "ComfoSense frame byte[%u]: 0x%02X", i, proxy_data_[i]);
+          }
+        }
         if (data_index_ == 0) {
           write_array(proxy_data_, proxy_data_index_+1);
           flush();
